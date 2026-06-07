@@ -1435,6 +1435,213 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
   res.json({ success: true, message: newMessage });
 });
 
+// Tasks management storage helpers
+const tasksFile = path.join(__dirname, 'tasks.json');
+
+function loadTasks() {
+  try {
+    if (fs.existsSync(tasksFile)) {
+      const data = fs.readFileSync(tasksFile, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Error loading tasks from file:', err);
+  }
+  return [];
+}
+
+function saveTasks(list) {
+  try {
+    fs.writeFileSync(tasksFile, JSON.stringify(list, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving tasks to file:', err);
+  }
+}
+
+// Tasks CRUD REST endpoints (Admins)
+app.get('/api/tasks', authenticateToken, async (req, res) => {
+  const tasks = loadTasks();
+  res.json({ success: true, tasks });
+});
+
+app.post('/api/tasks', authenticateToken, async (req, res) => {
+  const { title, description, status, label, priority, assigneeId, dueDate } = req.body;
+  if (!title) {
+    return res.status(400).json({ success: false, error: 'Title is required' });
+  }
+
+  const tasks = loadTasks();
+  const newTask = {
+    id: `TASK-${Math.floor(Math.random() * 9000) + 1000}`,
+    title,
+    description: description || '',
+    status: status || 'todo',
+    label: label || 'feature',
+    priority: priority || 'medium',
+    assigneeId: assigneeId || null,
+    dueDate: dueDate || null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  tasks.push(newTask);
+  saveTasks(tasks);
+
+  // Broadcast real-time update to all admins
+  broadcastToAdmins({ type: 'tasks_update', tasks });
+
+  // If assigned to an active device, notify that device as well
+  if (assigneeId) {
+    const employees = await loadEmployees();
+    const employee = employees.find(e => e.id === assigneeId);
+    if (employee && employee.deviceId) {
+      const deviceWs = devices.get(employee.deviceId);
+      if (deviceWs && deviceWs.readyState === WebSocket.OPEN) {
+        deviceWs.send(JSON.stringify({ type: 'tasks_update', tasks }));
+      }
+    }
+  }
+
+  res.json({ success: true, task: newTask });
+});
+
+app.put('/api/tasks/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { title, description, status, label, priority, assigneeId, dueDate } = req.body;
+
+  const tasks = loadTasks();
+  const index = tasks.findIndex(t => t.id === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  const originalTask = tasks[index];
+  const updatedTask = {
+    ...originalTask,
+    title: title !== undefined ? title : originalTask.title,
+    description: description !== undefined ? description : originalTask.description,
+    status: status !== undefined ? status : originalTask.status,
+    label: label !== undefined ? label : originalTask.label,
+    priority: priority !== undefined ? priority : originalTask.priority,
+    assigneeId: assigneeId !== undefined ? assigneeId : originalTask.assigneeId,
+    dueDate: dueDate !== undefined ? dueDate : originalTask.dueDate,
+    updatedAt: new Date().toISOString()
+  };
+
+  tasks[index] = updatedTask;
+  saveTasks(tasks);
+
+  // Broadcast real-time update to all admins
+  broadcastToAdmins({ type: 'tasks_update', tasks });
+
+  // If assigned (or previously assigned) to an active device, notify that device
+  const affectedAssignees = new Set([updatedTask.assigneeId, originalTask.assigneeId]);
+  const employees = await loadEmployees();
+  for (const empId of affectedAssignees) {
+    if (empId) {
+      const employee = employees.find(e => e.id === empId);
+      if (employee && employee.deviceId) {
+        const deviceWs = devices.get(employee.deviceId);
+        if (deviceWs && deviceWs.readyState === WebSocket.OPEN) {
+          deviceWs.send(JSON.stringify({ type: 'tasks_update', tasks }));
+        }
+      }
+    }
+  }
+
+  res.json({ success: true, task: updatedTask });
+});
+
+app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const tasks = loadTasks();
+  const filtered = tasks.filter(t => t.id !== id);
+  if (tasks.length === filtered.length) {
+    return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  saveTasks(filtered);
+
+  // Broadcast update to all admins
+  broadcastToAdmins({ type: 'tasks_update', tasks: filtered });
+
+  res.json({ success: true });
+});
+
+app.delete('/api/tasks/bulk', authenticateToken, async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids)) {
+    return res.status(400).json({ success: false, error: 'ids must be an array' });
+  }
+
+  const tasks = loadTasks();
+  const filtered = tasks.filter(t => !ids.includes(t.id));
+  saveTasks(filtered);
+
+  // Broadcast update to all admins
+  broadcastToAdmins({ type: 'tasks_update', tasks: filtered });
+
+  res.json({ success: true });
+});
+
+// Tasks endpoints (Mobile Devices)
+app.get('/api/devices/tasks', async (req, res) => {
+  const deviceId = req.headers['x-device-id'];
+  if (!deviceId) {
+    return res.status(400).json({ success: false, error: 'x-device-id header is required.' });
+  }
+
+  const employees = await loadEmployees();
+  const employee = employees.find(e => e.deviceId === deviceId);
+  if (!employee) {
+    return res.status(404).json({ success: false, error: 'Employee not found for this device.' });
+  }
+
+  // Load and filter tasks assigned to this employee
+  const tasks = loadTasks();
+  const assignedTasks = tasks.filter(t => t.assigneeId === employee.id);
+  res.json({ success: true, tasks: assignedTasks });
+});
+
+app.put('/api/devices/tasks/:id', async (req, res) => {
+  const deviceId = req.headers['x-device-id'];
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!deviceId) {
+    return res.status(400).json({ success: false, error: 'x-device-id header is required.' });
+  }
+  if (!status) {
+    return res.status(400).json({ success: false, error: 'status is required.' });
+  }
+
+  const employees = await loadEmployees();
+  const employee = employees.find(e => e.deviceId === deviceId);
+  if (!employee) {
+    return res.status(404).json({ success: false, error: 'Employee not found for this device.' });
+  }
+
+  const tasks = loadTasks();
+  const index = tasks.findIndex(t => t.id === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, error: 'Task not found.' });
+  }
+
+  // Verify that the task is assigned to this employee
+  if (tasks[index].assigneeId !== employee.id) {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Task is assigned to another employee.' });
+  }
+
+  tasks[index].status = status;
+  tasks[index].updatedAt = new Date().toISOString();
+  saveTasks(tasks);
+
+  // Broadcast update to all admins so Kanban board moves instantly
+  broadcastToAdmins({ type: 'tasks_update', tasks });
+
+  res.json({ success: true, task: tasks[index] });
+});
+
 app.get('/api/devices/users', async (req, res) => {
   const deviceId = req.headers['x-device-id'];
   if (!deviceId) {

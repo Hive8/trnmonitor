@@ -1,0 +1,62 @@
+[
+  {
+    "id": "TASK-1001",
+    "title": "Verify GPS Log updates on active screen",
+    "description": "Test foreground and background location tracking during active clock session on the physical device.",
+    "status": "todo",
+    "label": "feature",
+    "priority": "high",
+    "assigneeId": "emp_1780647133653",
+    "dueDate": "2026-06-15T12:00:00.000Z",
+    "createdAt": "2026-06-07T09:00:00.000Z",
+    "updatedAt": "2026-06-07T09:00:00.000Z"
+  },
+  {
+    "id": "TASK-1002",
+    "title": "Complete mobile layout for screen recorder diagnostics",
+    "description": "Refactor diagnostic telemetry counters (FPS, CPU, storage bytes) on the mobile dashboard view.",
+    "status": "in progress",
+    "label": "feature",
+    "priority": "medium",
+    "assigneeId": "emp_1780647133653",
+    "dueDate": "2026-06-10T18:00:00.000Z",
+    "createdAt": "2026-06-07T09:02:00.000Z",
+    "updatedAt": "2026-06-07T09:02:00.000Z"
+  },
+  {
+    "id": "TASK-1003",
+    "title": "Update Server dynamic port forwarding properties",
+    "description": "Expose UDP broadcast listener on the firewall configuration to allow discoverability in nested subnets.",
+    "status": "done",
+    "label": "bug",
+    "priority": "high",
+    "assigneeId": "emp_1780647133653",
+    "dueDate": "2026-06-06T09:00:00.000Z",
+    "createdAt": "2026-06-05T08:00:00.000Z",
+    "updatedAt": "2026-06-06T09:00:00.000Z"
+  },
+  {
+    "id": "TASK-1004",
+    "title": "Test WebSocket disconnect notifications",
+    "description": "Simulate network timeouts and confirm that connection indicators (Online, Red, Amber) transition correctly on the dashboard map.",
+    "status": "backlog",
+    "label": "bug",
+    "priority": "low",
+    "assigneeId": "emp_1780647133653",
+    "dueDate": "2026-06-20T12:00:00.000Z",
+    "createdAt": "2026-06-07T09:05:00.000Z",
+    "updatedAt": "2026-06-07T09:05:00.000Z"
+  },
+  {
+    "id": "TASK-1005",
+    "title": "Write documentation for live telemetry streaming",
+    "description": "Document raw WebRTC / WebSocket payload packet formats for system administrators.",
+    "status": "backlog",
+    "label": "documentation",
+    "priority": "low",
+    "assigneeId": null,
+    "dueDate": "2026-06-30T12:00:00.000Z",
+    "createdAt": "2026-06-07T09:06:00.000Z",
+    "updatedAt": "2026-06-07T09:06:00.000Z"
+  }
+]

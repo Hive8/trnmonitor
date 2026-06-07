@@ -1,11 +1,38 @@
-import { showSubmittedData } from '@/lib/show-submitted-data'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { TasksImportDialog } from './tasks-import-dialog'
 import { TasksMutateDrawer } from './tasks-mutate-drawer'
 import { useTasks } from './tasks-provider'
+import { useAuthStore } from '@/stores/auth-store'
 
 export function TasksDialogs() {
-  const { open, setOpen, currentRow, setCurrentRow } = useTasks()
+  const { open, setOpen, currentRow, setCurrentRow, fetchTasks } = useTasks()
+
+  const getBaseUrl = () => window.location.hostname === 'localhost' ? 'http://localhost:3000' : ''
+  const getHeaders = () => {
+    const headers: HeadersInit = { 'Content-Type': 'application/json' }
+    const { accessToken } = useAuthStore.getState().auth
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`
+    }
+    return headers
+  }
+
+  const handleDelete = async () => {
+    if (!currentRow) return
+    try {
+      const response = await fetch(`${getBaseUrl()}/api/tasks/${currentRow.id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      })
+      const data = await response.json()
+      if (data.success) {
+        await fetchTasks()
+      }
+    } catch (err) {
+      console.error('Failed to delete task:', err)
+    }
+  }
+
   return (
     <>
       <TasksMutateDrawer
@@ -44,15 +71,12 @@ export function TasksDialogs() {
                 setCurrentRow(null)
               }, 500)
             }}
-            handleConfirm={() => {
+            handleConfirm={async () => {
+              await handleDelete()
               setOpen(null)
               setTimeout(() => {
                 setCurrentRow(null)
               }, 500)
-              showSubmittedData(
-                currentRow,
-                'The following task has been deleted:'
-              )
             }}
             className='max-w-md'
             title={`Delete this task: ${currentRow.id} ?`}

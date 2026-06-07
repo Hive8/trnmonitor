@@ -1,0 +1,1 @@
+import{t as e}from"./unauthorized-error-CncUSct6.js";var t=e;export{t as component};

@@ -12,6 +12,7 @@ import 'admin_feed_screen.dart';
 import 'package:path_provider/path_provider.dart';
 import 'login_screen.dart';
 import 'chat_users_screen.dart';
+import 'tasks_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/url_helper.dart';
 
@@ -767,6 +768,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ],
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.assignment_rounded, color: Colors.amberAccent),
+              tooltip: 'My Tasks',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => TasksScreen(
+                      streamService: _streamService,
+                      serverIp: _serverIp,
+                    ),
+                  ),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.chat_bubble_outline_rounded, color: emeraldColor),
               tooltip: 'Chat with Management',

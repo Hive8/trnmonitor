@@ -393,6 +393,9 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
               }
             } else if (data.type === 'device_recordings' && data.deviceId === selectedDeviceId) setDeviceRecordings(data.recordings || []);
             else if (data.type === 'employee_list_update') setEmployees(data.employees || []);
+            else if (data.type === 'tasks_update') {
+              document.dispatchEvent(new CustomEvent('tasks_update', { detail: data.tasks }));
+            }
             else if (data.type === 'device_settings_update') setDeviceSettings(data.settings || {});
             else if (data.type === 'clock_sessions_list' || data.type === 'clock_sessions_update') setClockSessions(data.sessions || []);
             else if (data.type === 'battery_update') {

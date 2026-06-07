@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { showSubmittedData } from '@/lib/show-submitted-data'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -12,6 +12,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Sheet,
@@ -24,6 +25,10 @@ import {
 } from '@/components/ui/sheet'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { type Task } from '../data/schema'
+import { useTasks } from './tasks-provider'
+import { useDeviceStream } from '@/hooks/useDeviceStream'
+import { useAuthStore } from '@/stores/auth-store'
+import { Loader2 } from 'lucide-react'
 
 type TaskMutateDrawerProps = {
   open: boolean
@@ -36,6 +41,9 @@ const formSchema = z.object({
   status: z.string().min(1, 'Please select a status.'),
   label: z.string().min(1, 'Please select a label.'),
   priority: z.string().min(1, 'Please choose a priority.'),
+  description: z.string().optional().nullable(),
+  assigneeId: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
 })
 type TaskForm = z.infer<typeof formSchema>
 
@@ -45,30 +53,109 @@ export function TasksMutateDrawer({
   currentRow,
 }: TaskMutateDrawerProps) {
   const isUpdate = !!currentRow
+  const { fetchTasks } = useTasks()
+  const { employees } = useDeviceStream()
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<TaskForm>({
     resolver: zodResolver(formSchema),
-    defaultValues: currentRow ?? {
+    defaultValues: {
       title: '',
       status: '',
       label: '',
       priority: '',
+      description: '',
+      assigneeId: 'unassigned',
+      dueDate: '',
     },
   })
 
-  const onSubmit = (data: TaskForm) => {
-    // do something with the form data
-    onOpenChange(false)
-    form.reset()
-    showSubmittedData(data)
+  useEffect(() => {
+    if (currentRow) {
+      form.reset({
+        title: currentRow.title,
+        status: currentRow.status,
+        label: currentRow.label,
+        priority: currentRow.priority,
+        description: currentRow.description ?? '',
+        assigneeId: currentRow.assigneeId ?? 'unassigned',
+        dueDate: currentRow.dueDate ? new Date(currentRow.dueDate).toISOString().split('T')[0] : '',
+      })
+    } else {
+      form.reset({
+        title: '',
+        status: '',
+        label: '',
+        priority: '',
+        description: '',
+        assigneeId: 'unassigned',
+        dueDate: '',
+      })
+    }
+  }, [currentRow, open, form])
+
+  const getBaseUrl = () => window.location.hostname === 'localhost' ? 'http://localhost:3000' : ''
+  const getHeaders = () => {
+    const headers: HeadersInit = { 'Content-Type': 'application/json' }
+    const { accessToken } = useAuthStore.getState().auth
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`
+    }
+    return headers
   }
+
+  const onSubmit = async (data: TaskForm) => {
+    setIsSubmitting(true)
+    try {
+      const payload = {
+        title: data.title,
+        status: data.status,
+        label: data.label,
+        priority: data.priority,
+        description: data.description || null,
+        assigneeId: data.assigneeId === 'unassigned' ? null : data.assigneeId,
+        dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null,
+      }
+
+      const url = isUpdate 
+        ? `${getBaseUrl()}/api/tasks/${currentRow.id}`
+        : `${getBaseUrl()}/api/tasks`
+      
+      const method = isUpdate ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      })
+
+      const responseData = await response.json()
+      if (responseData.success) {
+        await fetchTasks()
+        onOpenChange(false)
+        form.reset()
+      }
+    } catch (err) {
+      console.error('Failed to submit task:', err)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const employeeItems = [
+    { label: 'Unassigned', value: 'unassigned' },
+    ...employees.map((emp) => ({
+      label: `${emp.firstName} ${emp.lastName}`,
+      value: emp.id,
+    })),
+  ]
 
   return (
     <Sheet
       open={open}
       onOpenChange={(v) => {
         onOpenChange(v)
-        form.reset()
+        if (!v) form.reset()
       }}
     >
       <SheetContent className='flex flex-col'>
@@ -100,6 +187,62 @@ export function TasksMutateDrawer({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name='description'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      {...field} 
+                      value={field.value ?? ''}
+                      placeholder='Enter task description' 
+                      className='min-h-[80px]'
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='assigneeId'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Assignee</FormLabel>
+                  <SelectDropdown
+                    defaultValue={field.value ?? 'unassigned'}
+                    onValueChange={field.onChange}
+                    placeholder='Select assignee'
+                    items={employeeItems}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='dueDate'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Due Date</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type='date' 
+                      {...field} 
+                      value={field.value ?? ''}
+                      className='dark:bg-input/30'
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name='status'
@@ -109,7 +252,7 @@ export function TasksMutateDrawer({
                   <SelectDropdown
                     defaultValue={field.value}
                     onValueChange={field.onChange}
-                    placeholder='Select dropdown'
+                    placeholder='Select status'
                     items={[
                       { label: 'In Progress', value: 'in progress' },
                       { label: 'Backlog', value: 'backlog' },
@@ -122,6 +265,7 @@ export function TasksMutateDrawer({
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name='label'
@@ -160,6 +304,7 @@ export function TasksMutateDrawer({
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name='priority'
@@ -202,7 +347,8 @@ export function TasksMutateDrawer({
           <SheetClose asChild>
             <Button variant='outline'>Close</Button>
           </SheetClose>
-          <Button form='tasks-form' type='submit'>
+          <Button form='tasks-form' type='submit' disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className='h-4 w-4 animate-spin mr-2' /> : null}
             Save changes
           </Button>
         </SheetFooter>
