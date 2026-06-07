@@ -1238,6 +1238,55 @@ wss.on('connection', async (ws, req) => {
 });
 
 // REST API for chat messages
+app.get('/api/messages/unread-count', authenticateToken, async (req, res) => {
+  const currentUserId = req.user.userId;
+
+  if (!currentUserId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const { error, count } = await supabase
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('receiver_id', currentUserId)
+    .eq('is_read', false);
+
+  if (error) {
+    console.error('Error fetching unread count:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch unread count' });
+  }
+
+  res.json({ success: true, count: count || 0 });
+});
+
+app.get('/api/messages/unread-by-sender', authenticateToken, async (req, res) => {
+  const currentUserId = req.user.userId;
+
+  if (!currentUserId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select('sender_id')
+    .eq('receiver_id', currentUserId)
+    .eq('is_read', false);
+
+  if (error) {
+    console.error('Error fetching unread by sender:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch unread by sender' });
+  }
+
+  const counts = {};
+  if (data) {
+    data.forEach(msg => {
+      counts[msg.sender_id] = (counts[msg.sender_id] || 0) + 1;
+    });
+  }
+
+  res.json({ success: true, counts });
+});
+
 app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
   const { userId } = req.params;
   const currentUserId = req.user.userId;
@@ -1245,6 +1294,14 @@ app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
   if (!currentUserId) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
+
+  // Mark incoming messages from this sender as read
+  await supabase
+    .from('messages')
+    .update({ is_read: true })
+    .eq('sender_id', userId)
+    .eq('receiver_id', currentUserId)
+    .eq('is_read', false);
 
   const { data, error } = await supabase
     .from('messages')

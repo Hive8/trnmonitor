@@ -21,6 +21,8 @@ interface DeviceStreamContextProps {
   deviceBatteries: { [deviceId: string]: number };
   deviceLocations: { [deviceId: string]: { latitude: number; longitude: number; timestamp: string } };
   systemLogs: SystemLog[];
+  unreadChatCount: number;
+  unreadBySender: { [senderId: string]: number };
   
   handleSelectDevice: (deviceId: string) => void;
   toggleRecord: () => void;
@@ -33,6 +35,8 @@ interface DeviceStreamContextProps {
   sendCommandToDevice: (action: string, extraPayload?: any) => boolean;
   takeScreenshot: () => void;
   playDeviceRecording: (path: string, name: string) => void;
+  fetchUnreadCounts: () => Promise<void>;
+  markChatAsRead: (senderId: string) => void;
 }
 
 const DeviceStreamContext = createContext<DeviceStreamContextProps | undefined>(undefined);
@@ -56,6 +60,8 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
   const [deviceBatteries, setDeviceBatteries] = useState<{ [deviceId: string]: number }>({});
   const [deviceLocations, setDeviceLocations] = useState<{ [deviceId: string]: { latitude: number; longitude: number; timestamp: string } }>({});
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+  const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
+  const [unreadBySender, setUnreadBySender] = useState<{ [senderId: string]: number }>({});
 
   const socketRef = useRef<WebSocket | null>(null);
   const frameCountRef = useRef(0);
@@ -187,6 +193,44 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
     } catch (err) { console.error(err); }
   };
 
+  const fetchUnreadCounts = async () => {
+    try {
+      const { accessToken, user } = useAuthStore.getState().auth;
+      if (!accessToken || !user) return;
+      const baseUrl = getBaseUrl();
+      const headers = getHeaders();
+      
+      const [countRes, senderRes] = await Promise.all([
+        fetch(`${baseUrl}/api/messages/unread-count`, { headers }),
+        fetch(`${baseUrl}/api/messages/unread-by-sender`, { headers })
+      ]);
+      
+      if (countRes.ok && senderRes.ok) {
+        const countData = await countRes.json();
+        const senderData = await senderRes.json();
+        setUnreadChatCount(countData.count || 0);
+        setUnreadBySender(senderData.counts || {});
+      }
+    } catch (err) {
+      console.error('Error fetching unread counts:', err);
+    }
+  };
+
+  const markChatAsRead = (senderId: string) => {
+    setUnreadBySender(prev => {
+      const countForSender = prev[senderId] || 0;
+      if (countForSender === 0) return prev;
+      
+      // Update total unread count
+      setUnreadChatCount(total => Math.max(0, total - countForSender));
+      
+      return {
+        ...prev,
+        [senderId]: 0
+      };
+    });
+  };
+
   const sendCommandToDevice = (action: string, extraPayload: any = {}) => {
     if (!selectedDeviceId) return false;
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
@@ -295,6 +339,7 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
         fetchServerIps();
         fetchDeviceSettings();
         fetchClockSessions();
+        fetchUnreadCounts();
 
         if (selectedDeviceId) {
           ws.send(JSON.stringify({
@@ -365,7 +410,18 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
                 return next;
               });
             }
-            else if (data.type === 'new_message') document.dispatchEvent(new CustomEvent('new_chat_message', { detail: data.message }));
+            else if (data.type === 'new_message') {
+              const msg = data.message;
+              const { user } = useAuthStore.getState().auth;
+              if (user && msg.receiverId === user.accountNo) {
+                setUnreadChatCount(prev => prev + 1);
+                setUnreadBySender(prev => ({
+                  ...prev,
+                  [msg.senderId]: (prev[msg.senderId] || 0) + 1
+                }));
+              }
+              document.dispatchEvent(new CustomEvent('new_chat_message', { detail: msg }));
+            }
           } catch (err) { console.error('Error parsing text frame:', err); }
         } else {
           try {
@@ -419,8 +475,8 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <DeviceStreamContext.Provider value={{
-      wsStatus, activeDevices, selectedDeviceId, serverRecordings, deviceRecordings, employees, serverIps, deviceSettings, clockSessions, localRecordedSessions, isRecording, fps, streamUrl, toasts, videoModal, deviceBatteries, deviceLocations, systemLogs,
-      handleSelectDevice, toggleRecord, clearStream, showToast, fetchClockSessions, fetchEmployees, fetchRecordings, setVideoModal, sendCommandToDevice, takeScreenshot, playDeviceRecording
+      wsStatus, activeDevices, selectedDeviceId, serverRecordings, deviceRecordings, employees, serverIps, deviceSettings, clockSessions, localRecordedSessions, isRecording, fps, streamUrl, toasts, videoModal, deviceBatteries, deviceLocations, systemLogs, unreadChatCount, unreadBySender,
+      handleSelectDevice, toggleRecord, clearStream, showToast, fetchClockSessions, fetchEmployees, fetchRecordings, setVideoModal, sendCommandToDevice, takeScreenshot, playDeviceRecording, fetchUnreadCounts, markChatAsRead
     }}>
       {children}
     </DeviceStreamContext.Provider>

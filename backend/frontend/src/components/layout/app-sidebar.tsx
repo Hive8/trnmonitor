@@ -12,10 +12,12 @@ import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
 import { TeamSwitcher } from './team-switcher'
 import { useAuthStore } from '@/stores/auth-store'
+import { useDeviceStream } from '@/hooks/useDeviceStream'
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { auth } = useAuthStore()
+  const { unreadChatCount } = useDeviceStream()
 
   const userRoles = auth.user?.role || []
   const userPermissions = auth.user?.permissions || []
@@ -54,7 +56,15 @@ export function AppSidebar() {
   const filteredNavGroups = sidebarData.navGroups
     .map((group) => ({
       ...group,
-      items: filterItems(group.items),
+      items: filterItems(group.items).map((item) => {
+        if (item.title === 'Chats') {
+          return {
+            ...item,
+            badge: unreadChatCount > 0 ? String(unreadChatCount) : undefined,
+          }
+        }
+        return item
+      }),
     }))
     .filter((group) => group.items.length > 0)
 

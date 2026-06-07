@@ -26,6 +26,7 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { NewChat } from './components/new-chat'
 import { useDeviceStream } from '@/hooks/useDeviceStream'
 import { useAuthStore } from '@/stores/auth-store'
+import { Badge } from '@/components/ui/badge'
 
 export function Chats() {
   const [search, setSearch] = useState('')
@@ -37,7 +38,7 @@ export function Chats() {
   
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const { employees } = useDeviceStream()
+  const { employees, unreadBySender, markChatAsRead } = useDeviceStream()
   const currentUser = useAuthStore(s => s.auth.user)
 
   // Filtered data based on the search query (exclude current user)
@@ -48,6 +49,7 @@ export function Chats() {
 
   useEffect(() => {
     if (!selectedUser) return;
+    markChatAsRead(selectedUser.id);
     const fetchMessages = async () => {
       try {
         const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000' : ''
@@ -74,6 +76,13 @@ export function Chats() {
       const msg = e.detail;
       if (selectedUser && (msg.senderId === selectedUser.id || msg.receiverId === selectedUser.id)) {
         setMessages(prev => [...prev, msg]);
+        markChatAsRead(selectedUser.id);
+        const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+        const { accessToken } = useAuthStore.getState().auth;
+        fetch(`${baseUrl}/api/messages/${selectedUser.id}`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        }).catch(err => console.error(err));
+        
         setTimeout(() => {
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }, 100)
@@ -188,20 +197,27 @@ export function Chats() {
                         setMobileSelectedUser(chatUsr)
                       }}
                     >
-                      <div className='flex gap-2'>
-                        <Avatar>
-                          <AvatarFallback>
-                            {getDisplayNameInitials(fullName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <span className='col-start-2 row-span-2 font-medium'>
-                            {fullName}
-                          </span>
-                          <span className='col-start-2 row-span-2 row-start-2 line-clamp-2 text-ellipsis text-muted-foreground group-hover:text-accent-foreground/90 capitalize'>
-                            {chatUsr.role}
-                          </span>
+                      <div className='flex w-full items-center justify-between gap-2'>
+                        <div className='flex gap-2'>
+                          <Avatar>
+                            <AvatarFallback>
+                              {getDisplayNameInitials(fullName)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <span className='col-start-2 row-span-2 font-medium block'>
+                              {fullName}
+                            </span>
+                            <span className='col-start-2 row-span-2 row-start-2 line-clamp-2 text-ellipsis text-muted-foreground group-hover:text-accent-foreground/90 capitalize text-xs'>
+                              {chatUsr.role}
+                            </span>
+                          </div>
                         </div>
+                        {unreadBySender[chatUsr.id] > 0 && (
+                          <Badge variant='destructive' className='rounded-full px-2 h-5 min-w-5 flex items-center justify-center text-[10px] font-bold animate-pulse'>
+                            {unreadBySender[chatUsr.id]}
+                          </Badge>
+                        )}
                       </div>
                     </button>
                     <Separator className='my-1' />
