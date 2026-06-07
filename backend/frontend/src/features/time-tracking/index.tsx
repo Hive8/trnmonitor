@@ -437,16 +437,54 @@ export function TimeTracking() {
                               </div>
                             ) : (
                               <div className="space-y-3">
-                                <div className="flex flex-wrap gap-4 text-xs text-slate-400 bg-slate-900/20 p-2.5 rounded-lg border border-slate-900">
-                                  <div>
-                                    Total Points: <span className="font-semibold text-slate-300 font-mono">{sessionGpsLogs[session.id].length}</span>
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 bg-slate-900/20 p-2.5 rounded-lg border border-slate-900">
+                                  <div className="flex flex-wrap gap-4">
+                                    <div>
+                                      Total Points: <span className="font-semibold text-slate-300 font-mono">{sessionGpsLogs[session.id].length}</span>
+                                    </div>
+                                    <div>
+                                      First Logged: <span className="font-semibold text-slate-300">{new Date(sessionGpsLogs[session.id][0].timestamp).toLocaleTimeString()}</span>
+                                    </div>
+                                    <div>
+                                      Last Logged: <span className="font-semibold text-slate-300">{new Date(sessionGpsLogs[session.id][sessionGpsLogs[session.id].length - 1].timestamp).toLocaleTimeString()}</span>
+                                    </div>
                                   </div>
-                                  <div>
-                                    First Logged: <span className="font-semibold text-slate-300">{new Date(sessionGpsLogs[session.id][0].timestamp).toLocaleTimeString()}</span>
-                                  </div>
-                                  <div>
-                                    Last Logged: <span className="font-semibold text-slate-300">{new Date(sessionGpsLogs[session.id][sessionGpsLogs[session.id].length - 1].timestamp).toLocaleTimeString()}</span>
-                                  </div>
+                                  
+                                  {sessionGpsLogs[session.id].length > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-[10px] gap-1 border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-400 text-slate-300"
+                                      onClick={() => {
+                                        const logs = sessionGpsLogs[session.id];
+                                        let url = '';
+                                        if (logs.length === 1) {
+                                          url = `https://www.google.com/maps/search/?api=1&query=${logs[0].latitude},${logs[0].longitude}`;
+                                        } else {
+                                          const origin = `${logs[0].latitude},${logs[0].longitude}`;
+                                          const destination = `${logs[logs.length - 1].latitude},${logs[logs.length - 1].longitude}`;
+                                          const intermediate = logs.slice(1, -1);
+                                          let waypoints = '';
+                                          if (intermediate.length > 0) {
+                                            let sampled = intermediate;
+                                            if (intermediate.length > 20) {
+                                              const step = Math.ceil(intermediate.length / 20);
+                                              sampled = [];
+                                              for (let i = 0; i < intermediate.length; i += step) {
+                                                sampled.push(intermediate[i]);
+                                              }
+                                            }
+                                            waypoints = '&waypoints=' + sampled.map(p => `${p.latitude},${p.longitude}`).join('|');
+                                          }
+                                          url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}`;
+                                        }
+                                        window.open(url, '_blank', 'noopener,noreferrer');
+                                      }}
+                                    >
+                                      <MapPin className="w-3 h-3 text-violet-400" />
+                                      View Full Route on Google Maps
+                                    </Button>
+                                  )}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[160px] overflow-y-auto pr-1">
@@ -716,9 +754,44 @@ export function TimeTracking() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex justify-between text-xs text-slate-400">
-                  <span>Device ID: <strong className="font-mono text-slate-300">{selectedSession?.deviceId}</strong></span>
-                  <span>Total logged points: <strong className="text-slate-300">{gpsLogs.length}</strong></span>
+                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+                  <div className="flex gap-4">
+                    <span>Device ID: <strong className="font-mono text-slate-300">{selectedSession?.deviceId}</strong></span>
+                    <span>Total points: <strong className="text-slate-300">{gpsLogs.length}</strong></span>
+                  </div>
+                  {gpsLogs.length > 0 && (
+                    <Button
+                      size="sm"
+                      className="h-7 text-[10px] gap-1 bg-violet-600 hover:bg-violet-700 text-white font-medium"
+                      onClick={() => {
+                        let url = '';
+                        if (gpsLogs.length === 1) {
+                          url = `https://www.google.com/maps/search/?api=1&query=${gpsLogs[0].latitude},${gpsLogs[0].longitude}`;
+                        } else {
+                          const origin = `${gpsLogs[0].latitude},${gpsLogs[0].longitude}`;
+                          const destination = `${gpsLogs[gpsLogs.length - 1].latitude},${gpsLogs[gpsLogs.length - 1].longitude}`;
+                          const intermediate = gpsLogs.slice(1, -1);
+                          let waypoints = '';
+                          if (intermediate.length > 0) {
+                            let sampled = intermediate;
+                            if (intermediate.length > 20) {
+                              const step = Math.ceil(intermediate.length / 20);
+                              sampled = [];
+                              for (let i = 0; i < intermediate.length; i += step) {
+                                sampled.push(intermediate[i]);
+                              }
+                            }
+                            waypoints = '&waypoints=' + sampled.map(p => `${p.latitude},${p.longitude}`).join('|');
+                          }
+                          url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}`;
+                        }
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <MapPin className="w-3 h-3" />
+                      View Full Route on Google Maps
+                    </Button>
+                  )}
                 </div>
 
                 <div className="relative border-l border-slate-800 ml-3.5 pl-6 space-y-4">
