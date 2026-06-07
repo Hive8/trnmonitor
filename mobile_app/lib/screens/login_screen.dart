@@ -16,6 +16,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _serverController = TextEditingController(text: 'monitor.trnllc.com');
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   
@@ -25,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final StreamService _streamService = StreamService();
   RawDatagramSocket? _discoverySocket;
-  String _discoveredServerIp = 'monitor.trnllc.com'; // Default fallback domain
+  String? _discoveredLocalIp;
 
   @override
   void initState() {
@@ -52,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
               print('Discovered server on login screen: $addr');
               if (mounted) {
                 setState(() {
-                  _discoveredServerIp = addr;
+                  _discoveredLocalIp = addr;
                 });
               }
             }
@@ -79,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    final serverIp = _discoveredServerIp.trim();
+    final serverIp = _serverController.text.trim();
 
     try {
       // 1. Get Device ID
@@ -166,6 +167,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _stopServerDiscovery();
+    _serverController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -254,6 +256,82 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                     ),
+
+                  // Server Address Input Field
+                  const Text(
+                    'SERVER ADDRESS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF64748B),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _serverController,
+                    keyboardType: TextInputType.url,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. monitor.trnllc.com',
+                      hintStyle: const TextStyle(color: Color(0xFF475569)),
+                      filled: true,
+                      fillColor: const Color(0xFF1E293B),
+                      prefixIcon: const Icon(Icons.dns_outlined, color: Color(0xFF64748B)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter the server address';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (_discoveredLocalIp != null && _discoveredLocalIp != _serverController.text) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _serverController.text = _discoveredLocalIp!;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.wifi_tethering, size: 14, color: Color(0xFF10B981)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Local server found: $_discoveredLocalIp (Tap to use)',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF10B981),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
 
                   // Email Input Field
                   const Text(
@@ -353,35 +431,34 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 20),
 
                   // Discovered Server Status
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 24.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _discoveredServerIp.isNotEmpty ? const Color(0xFF10B981) : Colors.amber,
+                  if (_discoveredLocalIp != null)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF10B981),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _discoveredServerIp.isNotEmpty 
-                                ? 'Server: $_discoveredServerIp' 
-                                : 'Searching for server...',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF64748B),
-                              fontFamily: 'monospace',
+                            const SizedBox(width: 8),
+                            Text(
+                              'Discovered Local Server: $_discoveredLocalIp',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                                fontFamily: 'monospace',
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   const SizedBox(height: 8),
 
                   // Login Button
