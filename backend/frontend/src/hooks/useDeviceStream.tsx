@@ -37,6 +37,7 @@ interface DeviceStreamContextProps {
   playDeviceRecording: (path: string, name: string) => void;
   fetchUnreadCounts: () => Promise<void>;
   markChatAsRead: (senderId: string) => void;
+  updateDeviceSettings: (deviceId: string, targetFps: number, targetResolution: string) => Promise<void>;
 }
 
 const DeviceStreamContext = createContext<DeviceStreamContextProps | undefined>(undefined);
@@ -175,6 +176,35 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
         setDeviceSettings(data);
       }
     } catch (err) { console.error(err); }
+  };
+
+  const updateDeviceSettings = async (deviceId: string, targetFps: number, targetResolution: string) => {
+    try {
+      const { accessToken } = useAuthStore.getState().auth;
+      if (!accessToken) return;
+      const response = await fetch(`${getBaseUrl()}/api/devices/settings`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          deviceId,
+          fps: targetFps,
+          resolution: targetResolution
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast(`Settings updated for device ${deviceId}`, 'success');
+        setDeviceSettings(prev => ({
+          ...prev,
+          [deviceId]: data.settings || { fps: targetFps, resolution: targetResolution }
+        }));
+      } else {
+        showToast(data.error || 'Failed to update settings', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error updating device settings', 'error');
+    }
   };
 
   const fetchClockSessions = async () => {
@@ -479,7 +509,7 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
   return (
     <DeviceStreamContext.Provider value={{
       wsStatus, activeDevices, selectedDeviceId, serverRecordings, deviceRecordings, employees, serverIps, deviceSettings, clockSessions, localRecordedSessions, isRecording, fps, streamUrl, toasts, videoModal, deviceBatteries, deviceLocations, systemLogs, unreadChatCount, unreadBySender,
-      handleSelectDevice, toggleRecord, clearStream, showToast, fetchClockSessions, fetchEmployees, fetchRecordings, setVideoModal, sendCommandToDevice, takeScreenshot, playDeviceRecording, fetchUnreadCounts, markChatAsRead
+      handleSelectDevice, toggleRecord, clearStream, showToast, fetchClockSessions, fetchEmployees, fetchRecordings, setVideoModal, sendCommandToDevice, takeScreenshot, playDeviceRecording, fetchUnreadCounts, markChatAsRead, updateDeviceSettings
     }}>
       {children}
     </DeviceStreamContext.Provider>

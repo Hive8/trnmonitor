@@ -1,14 +1,14 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDeviceStream } from '@/hooks/useDeviceStream';
-import { Smartphone, BatteryCharging, Server, Play, Copy, RefreshCw, UploadCloud, MapPin } from 'lucide-react';
+import { Smartphone, BatteryCharging, Server, Play, Copy, RefreshCw, UploadCloud, MapPin, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function DeviceConsole() {
   const { 
     activeDevices, selectedDeviceId, handleSelectDevice, 
     deviceRecordings, employees, playDeviceRecording, deviceBatteries,
-    deviceLocations, sendCommandToDevice, showToast
+    deviceLocations, sendCommandToDevice, showToast, deviceSettings, updateDeviceSettings
   } = useDeviceStream();
 
   const getEmployeeName = (deviceId: string) => {
@@ -105,6 +105,49 @@ export function DeviceConsole() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Capture Settings */}
+      {selectedDeviceId && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Settings className="w-4 h-4 text-emerald-500" />
+              Capture Settings
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-1">Resolution</label>
+                <select
+                  value={deviceSettings[selectedDeviceId]?.resolution || '720x1600'}
+                  onChange={(e) => updateDeviceSettings(selectedDeviceId, deviceSettings[selectedDeviceId]?.fps || 5, e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="1080x2400">1080x2400 (Original)</option>
+                  <option value="720x1600">720x1600 (High)</option>
+                  <option value="480x1066">480x1066 (Medium)</option>
+                  <option value="360x800">360x800 (Low)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-1">Target FPS</label>
+                <select
+                  value={deviceSettings[selectedDeviceId]?.fps || 5}
+                  onChange={(e) => updateDeviceSettings(selectedDeviceId, parseInt(e.target.value, 10), deviceSettings[selectedDeviceId]?.resolution || '720x1600')}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value={2}>2 FPS</option>
+                  <option value={3}>3 FPS</option>
+                  <option value={5}>5 FPS</option>
+                  <option value={10}>10 FPS</option>
+                  <option value={15}>15 FPS</option>
+                </select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Device Local Files */}
       <Card className="flex-1 flex flex-col min-h-[300px]">
