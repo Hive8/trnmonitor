@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'login_screen.dart';
 import 'chat_users_screen.dart';
 import 'package:geolocator/geolocator.dart';
+import '../services/url_helper.dart';
 
 // Styling Color Tokens
 const Color emeraldColor = Color(0xFF10B981);
@@ -37,7 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   StreamSubscription<Map<String, dynamic>>? _commandSubscription;
 
   // Connection Configuration
-  String _serverIp = '192.168.10.60:3000'; // Default to localhost (resolved via adb reverse or simulator)
+  String _serverIp = 'monitor.trnllc.com'; // Default fallback domain
   final TextEditingController _ipController = TextEditingController();
   
   bool _isClockedIn = false;
@@ -75,8 +76,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   bool _isDiscovering = false;
   final Map<String, String> _discoveredServers = {}; // addr -> name
 
-  String get _httpBackendUrl => 'http://$_serverIp';
-  String get _wsBackendUrl => 'ws://$_serverIp';
+  String get _httpBackendUrl => UrlHelper.getHttpUrl(_serverIp);
+  String get _wsBackendUrl => UrlHelper.getWsUrl(_serverIp);
 
   String _employeeId = '';
   String _employeeName = 'Loading...';

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/stream_service.dart';
+import '../services/url_helper.dart';
 import 'chat_detail_screen.dart';
 
 class ChatUsersScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _ChatUsersScreenState extends State<ChatUsersScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
 
-  String get _httpBackendUrl => 'http://${widget.serverIp}';
+  String get _httpBackendUrl => UrlHelper.getHttpUrl(widget.serverIp);
 
   @override
   void initState() {

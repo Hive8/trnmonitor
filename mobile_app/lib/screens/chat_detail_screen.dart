@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/stream_service.dart';
+import '../services/url_helper.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final StreamService streamService;
@@ -36,7 +37,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _isLoading = true;
   bool _isSending = false;
 
-  String get _httpBackendUrl => 'http://${widget.serverIp}';
+  String get _httpBackendUrl => UrlHelper.getHttpUrl(widget.serverIp);
 
   @override
   void initState() {

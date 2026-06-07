@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import '../services/stream_service.dart';
+import '../services/url_helper.dart';
 import 'dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final StreamService _streamService = StreamService();
   RawDatagramSocket? _discoverySocket;
-  String _discoveredServerIp = '192.168.10.226:3000'; // Default fallback matching current server IP
+  String _discoveredServerIp = 'monitor.trnllc.com'; // Default fallback domain
 
   @override
   void initState() {
@@ -107,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // 3. Make HTTP request to Server
-      final url = Uri.parse('http://$serverIp/api/employees/login');
+      final url = Uri.parse('${UrlHelper.getHttpUrl(serverIp)}/api/employees/login');
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 8);
 
