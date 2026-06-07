@@ -523,14 +523,36 @@ export function Chats() {
                     </div>
                   )}
                   {uploadProgress && (
-                    <div className='flex items-center justify-between bg-muted/50 p-1.5 px-3 text-xs rounded-md border border-dashed border-border'>
-                      <span className='truncate text-muted-foreground'>
-                        {selectedFile?.name} ({uploadProgress})
-                      </span>
-                      {uploadedFileData && (
-                        <Button size='icon' type='button' variant='ghost' className='h-5 w-5 rounded-full' onClick={() => { setSelectedFile(null); setUploadedFileData(null); setUploadProgress(null); }}>
-                          <X size={12} />
-                        </Button>
+                    <div className='flex flex-col gap-2 bg-muted/50 p-2 text-xs rounded-md border border-dashed border-border'>
+                      <div className='flex items-center justify-between w-full'>
+                        <span className='truncate text-muted-foreground font-medium'>
+                          {selectedFile?.name} ({uploadProgress})
+                        </span>
+                        {(uploadedFileData || uploadProgress.includes('failed') || uploadProgress.includes('Error') || uploadProgress === 'Uploaded!') && (
+                          <Button size='icon' type='button' variant='ghost' className='h-5 w-5 rounded-full' onClick={() => { setSelectedFile(null); setUploadedFileData(null); setUploadProgress(null); }}>
+                            <X size={12} />
+                          </Button>
+                        )}
+                      </div>
+                      {uploadedFileData && uploadedFileData.fileType === 'image' && (
+                        <div className='overflow-hidden rounded-md border border-border bg-background max-w-32 max-h-24 flex items-center justify-center mt-1'>
+                          <img
+                            src={(() => {
+                              const url = uploadedFileData.fileUrl;
+                              if (url.startsWith('http')) return url;
+                              const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+                              return `${baseUrl}${url}`;
+                            })()}
+                            alt='Preview'
+                            className='object-cover max-h-24 max-w-full'
+                          />
+                        </div>
+                      )}
+                      {uploadedFileData && uploadedFileData.fileType === 'pdf' && (
+                        <div className='flex items-center gap-2 rounded-md border border-border bg-card p-1.5 max-w-xs mt-1'>
+                          <div className='flex size-6 items-center justify-center rounded-md bg-destructive/10 text-destructive font-bold text-[8px]'>PDF</div>
+                          <span className='truncate text-[10px] flex-1'>{uploadedFileData.fileName}</span>
+                        </div>
                       )}
                     </div>
                   )}

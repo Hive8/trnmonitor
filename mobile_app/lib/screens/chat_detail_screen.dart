@@ -756,36 +756,78 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               Container(
                 color: const Color(0xFF1E293B),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      _isUploadingFile 
-                          ? Icons.cloud_upload_outlined
-                          : (_uploadedFileData?['fileType'] == 'image' ? Icons.image : Icons.insert_drive_file),
-                      color: const Color(0xFF10B981),
-                      size: 18,
+                    Row(
+                      children: [
+                        Icon(
+                          _isUploadingFile 
+                              ? Icons.cloud_upload_outlined
+                              : (_uploadedFileData?['fileType'] == 'image' ? Icons.image : Icons.insert_drive_file),
+                          color: const Color(0xFF10B981),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _isUploadingFile
+                                ? 'Uploading file...'
+                                : (_selectedFile?.path.split('/').last ?? 'Attachment'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                        if (!_isUploadingFile)
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Color(0xFF94A3B8), size: 16),
+                            onPressed: () {
+                              setState(() {
+                                _selectedFile = null;
+                                _uploadedFileData = null;
+                              });
+                            },
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _isUploadingFile
-                            ? 'Uploading file...'
-                            : (_selectedFile?.path.split('/').last ?? 'Attachment'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                    ),
-                    if (!_isUploadingFile)
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Color(0xFF94A3B8), size: 16),
-                        onPressed: () {
-                          setState(() {
-                            _selectedFile = null;
-                            _uploadedFileData = null;
-                          });
-                        },
-                      ),
+                    if (!_isUploadingFile && _selectedFile != null) ...[
+                      const SizedBox(height: 8),
+                      if (_uploadedFileData?['fileType'] == 'image')
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.file(
+                            _selectedFile!,
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      else if (_uploadedFileData?['fileType'] == 'pdf')
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.black26,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF334155), width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.picture_as_pdf, color: Colors.red, size: 20),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  _selectedFile!.path.split('/').last,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ],
                 ),
               ),
