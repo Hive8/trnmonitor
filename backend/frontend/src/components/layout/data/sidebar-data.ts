@@ -8,7 +8,6 @@ import {
   HelpCircle,
   Lock,
   Bell,
-  Package,
   Palette,
   ServerOff,
   Settings,
@@ -64,12 +63,6 @@ export const sidebarData: SidebarData = {
           url: '/tasks',
           icon: ListTodo,
           permission: 'tasks',
-        },
-        {
-          title: 'Apps',
-          url: '/apps',
-          icon: Package,
-          permission: 'apps',
         },
         {
           title: 'Chats',

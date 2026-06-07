@@ -20,7 +20,6 @@ export const Route = createFileRoute('/_authenticated')({
 
     if (path === '/') requiredPermission = 'live_monitor'
     else if (path.startsWith('/tasks')) requiredPermission = 'tasks'
-    else if (path.startsWith('/apps')) requiredPermission = 'apps'
     else if (path.startsWith('/chats')) requiredPermission = 'chats'
     else if (path.startsWith('/users')) requiredPermission = 'users'
     else if (path.startsWith('/time-tracking')) requiredPermission = 'users'
@@ -34,7 +33,6 @@ export const Route = createFileRoute('/_authenticated')({
         const allowedPaths: { [key: string]: string } = {
           live_monitor: '/',
           tasks: '/tasks',
-          apps: '/apps',
           chats: '/chats',
           users: '/users',
           settings: '/settings',

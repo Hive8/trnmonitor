@@ -32,7 +32,6 @@ interface RolesMap {
 const AVAILABLE_PERMISSIONS = [
   { key: 'live_monitor', label: 'Live Monitor', desc: 'Access to the Live Monitor dashboard feeds and WebSocket stream.' },
   { key: 'tasks', label: 'Tasks', desc: 'Access to the Tasks / TODO list.' },
-  { key: 'apps', label: 'Apps', desc: 'Access to the Apps / Applications list.' },
   { key: 'chats', label: 'Chats', desc: 'Access to the Chats / Messages list.' },
   { key: 'users', label: 'User Management', desc: 'Access to User & Employee Management, Invite, and Clock Sessions.' },
   { key: 'settings', label: 'General Settings', desc: 'Access to General Settings (profile, display, appearance).' },
