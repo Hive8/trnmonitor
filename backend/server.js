@@ -1300,9 +1300,11 @@ app.post('/api/attachments/upload', upload.single('file'), async (req, res) => {
   }
 
   let fileType = 'file';
-  if (req.file.mimetype.startsWith('image/')) {
+  const ext = require('path').extname(req.file.originalname).toLowerCase();
+  
+  if (req.file.mimetype.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
     fileType = 'image';
-  } else if (req.file.mimetype === 'application/pdf') {
+  } else if (req.file.mimetype === 'application/pdf' || ext === '.pdf') {
     fileType = 'pdf';
   }
 
