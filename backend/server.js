@@ -200,8 +200,15 @@ function sendToAdmin(userId, messageObj) {
   });
 }
 
+function getAdbPath() {
+  if (fs.existsSync('D:\\adb-platform-tools\\adb.exe')) {
+    return 'D:\\adb-platform-tools\\adb.exe';
+  }
+  return 'adb';
+}
+
 function getAdbSerialForDevice(deviceId, callback) {
-  exec('adb devices', (err, stdout, stderr) => {
+  exec(`"${getAdbPath()}" devices`, (err, stdout, stderr) => {
     if (err) {
       console.error('Failed to run adb devices:', err);
       callback(null);
@@ -247,12 +254,12 @@ function getAdbSerialForDevice(deviceId, callback) {
     serials.forEach(serial => {
       // 1. Try reading from app's external files directory on shared storage (works for release builds)
       const extPath = '/sdcard/Android/data/com.example.screenrecorder.mobile_app/files/device_id.txt';
-      exec(`adb -s ${serial} shell cat ${extPath}`, (catErr, catStdout, catStderr) => {
+      exec(`"${getAdbPath()}" -s ${serial} shell cat ${extPath}`, (catErr, catStdout, catStderr) => {
         if (!catErr && catStdout.trim() === deviceId) {
           finishCheck(serial);
         } else {
           // 2. Fallback to private data directory run-as (works for debuggable builds)
-          exec(`adb -s ${serial} shell run-as com.example.screenrecorder.mobile_app cat app_flutter/device_id.txt`, (runAsErr, runAsStdout, runAsStderr) => {
+          exec(`"${getAdbPath()}" -s ${serial} shell run-as com.example.screenrecorder.mobile_app cat app_flutter/device_id.txt`, (runAsErr, runAsStdout, runAsStderr) => {
             if (!runAsErr && runAsStdout.trim() === deviceId) {
               finishCheck(serial);
             } else {
@@ -269,7 +276,7 @@ function getAdbSerialForDevice(deviceId, callback) {
 function queryAndBroadcastBattery(deviceId) {
   getAdbSerialForDevice(deviceId, (serial) => {
     if (!serial) return;
-    exec(`adb -s ${serial} shell cmd battery get level`, (err, stdout, stderr) => {
+    exec(`"${getAdbPath()}" -s ${serial} shell cmd battery get level`, (err, stdout, stderr) => {
       if (err) {
         console.error(`Failed to get battery level for device ${deviceId}:`, err.message);
         return;
@@ -313,7 +320,7 @@ async function startAdbCapture(deviceId) {
       isCapturingFrame = true;
 
       // Capture raw PNG bytes from ADB
-      const child = spawn('adb', ['-s', serial, 'exec-out', 'screencap', '-p']);
+      const child = spawn(getAdbPath(), ['-s', serial, 'exec-out', 'screencap', '-p']);
       const chunks = [];
 
       child.stdout.on('data', (chunk) => {
@@ -1184,7 +1191,7 @@ wss.on('connection', async (ws, req) => {
               const captureObj = adbCaptures.get(msg.deviceId);
               const serial = captureObj ? captureObj.serial : null;
               if (serial) {
-                const adbCmd = `adb -s ${serial} shell input keyevent ${keycode}`;
+                const adbCmd = `"${getAdbPath()}" -s ${serial} shell input keyevent ${keycode}`;
                 console.log(`ADB injection: Key event ${keycode} (${key}) on ${serial}`);
                 exec(adbCmd, (err, stdout, stderr) => {
                   if (err) {
