@@ -1460,7 +1460,11 @@ server.listen(port, () => {
       // Send to all broadcast addresses
       broadcastAddresses.forEach((addr) => {
         udpBeacon.send(payload, 0, payload.length, DISCOVERY_PORT, addr, (err) => {
-          if (err && !err.message.includes('ENETUNREACH') && !err.message.includes('ENOBUFS')) {
+          if (err && 
+              !err.message.includes('ENETUNREACH') && 
+              !err.message.includes('EPERM') && 
+              !err.message.includes('EADDRNOTAVAIL') && 
+              !err.message.includes('ENOBUFS')) {
             console.error(`UDP send error to ${addr}:`, err.message);
           }
         });
