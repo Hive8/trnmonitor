@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { Employee, Recording, DeviceRecording, ServerIp, ClockSession, ToastMessage } from '../types/device';
+import { Employee, Recording, DeviceRecording, ServerIp, ClockSession, ToastMessage, SystemLog } from '../types/device';
 import { useAuthStore } from '../stores/auth-store';
 
 interface DeviceStreamContextProps {
@@ -20,6 +20,7 @@ interface DeviceStreamContextProps {
   toasts: ToastMessage[];
   deviceBatteries: { [deviceId: string]: number };
   deviceLocations: { [deviceId: string]: { latitude: number; longitude: number; timestamp: string } };
+  systemLogs: SystemLog[];
   
   handleSelectDevice: (deviceId: string) => void;
   toggleRecord: () => void;
@@ -54,6 +55,7 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
   const [videoModal, setVideoModal] = useState({ isOpen: false, title: '', filename: '', isLoading: false });
   const [deviceBatteries, setDeviceBatteries] = useState<{ [deviceId: string]: number }>({});
   const [deviceLocations, setDeviceLocations] = useState<{ [deviceId: string]: { latitude: number; longitude: number; timestamp: string } }>({});
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
 
   const socketRef = useRef<WebSocket | null>(null);
   const frameCountRef = useRef(0);
@@ -354,6 +356,15 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
             else if (data.type === 'gps_update') {
               setDeviceLocations(prev => ({ ...prev, [data.deviceId]: data.gpsLog }));
             }
+            else if (data.type === 'system_log') {
+              setSystemLogs(prev => {
+                const next = [...prev, data.log];
+                if (next.length > 300) {
+                  return next.slice(next.length - 300);
+                }
+                return next;
+              });
+            }
             else if (data.type === 'new_message') document.dispatchEvent(new CustomEvent('new_chat_message', { detail: data.message }));
           } catch (err) { console.error('Error parsing text frame:', err); }
         } else {
@@ -408,7 +419,7 @@ export const DeviceStreamProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <DeviceStreamContext.Provider value={{
-      wsStatus, activeDevices, selectedDeviceId, serverRecordings, deviceRecordings, employees, serverIps, deviceSettings, clockSessions, localRecordedSessions, isRecording, fps, streamUrl, toasts, videoModal, deviceBatteries, deviceLocations,
+      wsStatus, activeDevices, selectedDeviceId, serverRecordings, deviceRecordings, employees, serverIps, deviceSettings, clockSessions, localRecordedSessions, isRecording, fps, streamUrl, toasts, videoModal, deviceBatteries, deviceLocations, systemLogs,
       handleSelectDevice, toggleRecord, clearStream, showToast, fetchClockSessions, fetchEmployees, fetchRecordings, setVideoModal, sendCommandToDevice, takeScreenshot, playDeviceRecording
     }}>
       {children}

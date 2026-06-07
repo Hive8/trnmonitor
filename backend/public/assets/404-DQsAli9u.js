@@ -1,1 +1,0 @@
-import{C as e}from"./index-DNs2-0Z_.js";var t=e;export{t as component};

@@ -55,3 +55,9 @@ export interface ToastMessage {
   message: string;
   type: 'success' | 'warning' | 'error' | 'info';
 }
+
+export interface SystemLog {
+  timestamp: string;
+  message: string;
+  level?: 'error' | 'warning' | 'info';
+}

@@ -159,6 +159,38 @@ function broadcastToAdmins(messageObj) {
   });
 }
 
+// Wrap console.log to broadcast to admins in real-time
+const originalLog = console.log;
+console.log = function (...args) {
+  originalLog.apply(console, args);
+  try {
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+    broadcastToAdmins({
+      type: 'system_log',
+      log: {
+        timestamp: new Date().toISOString(),
+        message
+      }
+    });
+  } catch (_) {}
+};
+
+const originalError = console.error;
+console.error = function (...args) {
+  originalError.apply(console, args);
+  try {
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+    broadcastToAdmins({
+      type: 'system_log',
+      log: {
+        timestamp: new Date().toISOString(),
+        message,
+        level: 'error'
+      }
+    });
+  } catch (_) {}
+};
+
 function sendToAdmin(userId, messageObj) {
   const msgString = JSON.stringify(messageObj);
   admins.forEach(admin => {
@@ -1110,6 +1142,28 @@ wss.on('connection', async (ws, req) => {
     ws.send(JSON.stringify({ type: 'employee_list_update', employees: (await loadEmployees()) }));
     ws.send(JSON.stringify({ type: 'device_settings_update', settings: (await loadDeviceSettings()) }));
     ws.send(JSON.stringify({ type: 'clock_sessions_list', sessions: (await loadClockSessions()) }));
+
+    // Send latest GPS location for connected devices
+    for (const devId of devices.keys()) {
+      try {
+        const { data: gpsLogs } = await supabase
+          .from('gps_logs')
+          .select('*')
+          .eq('device_id', devId)
+          .order('timestamp', { ascending: false })
+          .limit(1);
+          
+        if (gpsLogs && gpsLogs.length > 0) {
+          ws.send(JSON.stringify({
+            type: 'gps_update',
+            deviceId: devId,
+            gpsLog: snakeToCamel(gpsLogs[0])
+          }));
+        }
+      } catch (err) {
+        console.error(`Error loading initial GPS coordinates for device ${devId}:`, err);
+      }
+    }
 
     ws.on('message', async (message) => {
       console.log('Received message from admin:', message.toString());
