@@ -1,0 +1,34 @@
+# Node.js
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Flutter / Dart
+**/.dart_tool/
+**/build/
+**/.pub-cache/
+**/.pub/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/android/local.properties
+**/android/app/build/
+**/.packages
+**/device_id.txt
+**/employee_info.json
+
+# IDEs & OS
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Project-specific ignored paths
+/brain/
+/backend/recordings/
+/backend/frontend/dist/
