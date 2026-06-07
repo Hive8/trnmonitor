@@ -8,11 +8,13 @@ import '../services/url_helper.dart';
 class TasksScreen extends StatefulWidget {
   final StreamService streamService;
   final String serverIp;
+  final bool isEmbedded;
 
   const TasksScreen({
     super.key,
     required this.streamService,
     required this.serverIp,
+    this.isEmbedded = false,
   });
 
   @override
@@ -638,6 +640,65 @@ class _TasksScreenState extends State<TasksScreen> {
   Widget build(BuildContext context) {
     final filteredTasks = _getFilteredTasks();
 
+    final mainContent = Column(
+      children: [
+        // Filter Bar
+        Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            children: [
+              _buildFilterChip('All'),
+              const SizedBox(width: 8),
+              _buildFilterChip('Pending'),
+              const SizedBox(width: 8),
+              _buildFilterChip('Completed'),
+            ],
+          ),
+        ),
+
+        // Tasks List
+        Expanded(
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF10B981),
+                  ),
+                )
+              : filteredTasks.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No tasks assigned.',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 14,
+                        ),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      color: const Color(0xFF10B981),
+                      onRefresh: _fetchTasks,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        itemCount: filteredTasks.length,
+                        itemBuilder: (context, index) {
+                          return _buildTaskCard(filteredTasks[index]);
+                        },
+                      ),
+                    ),
+        ),
+      ],
+    );
+
+    if (widget.isEmbedded) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F172A), // Slate 900
+        body: SafeArea(child: mainContent),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A), // Slate 900
       appBar: AppBar(
@@ -661,55 +722,7 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Filter Bar
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Row(
-                children: [
-                  _buildFilterChip('All'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Pending'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Completed'),
-                ],
-              ),
-            ),
-
-            // Tasks List
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF10B981),
-                      ),
-                    )
-                  : filteredTasks.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No tasks assigned.',
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 14,
-                        ),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      itemCount: filteredTasks.length,
-                      itemBuilder: (context, index) {
-                        return _buildTaskCard(filteredTasks[index]);
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
+      body: SafeArea(child: mainContent),
     );
   }
 

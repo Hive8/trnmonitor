@@ -43,6 +43,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   final TextEditingController _ipController = TextEditingController();
   
   bool _isClockedIn = false;
+  int _currentTabIndex = 0;
   List<File> _recordings = [];
   
   // Timers and Stats
@@ -727,6 +728,589 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
+  String _getAppBarTitle() {
+    switch (_currentTabIndex) {
+      case 0:
+        return 'TRN Monitor';
+      case 1:
+        return 'My Assigned Tasks';
+      case 2:
+        return 'Select Contact';
+      case 3:
+        return 'Settings & Tools';
+      default:
+        return 'TRN Monitor';
+    }
+  }
+
+  void _setStateWrapper(VoidCallback fn) {
+    if (mounted) {
+      setState(fn);
+    }
+  }
+
+  Widget _buildBottomNavBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E293B), // Slate 800
+        border: Border(
+          top: BorderSide(color: slateDivideColor, width: 1.5),
+        ),
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _currentTabIndex,
+        onTap: (index) {
+          setState(() {
+            _currentTabIndex = index;
+          });
+        },
+        backgroundColor: const Color(0xFF1E293B), // Slate 800
+        selectedItemColor: emeraldColor,
+        unselectedItemColor: slateAwayColor,
+        type: BottomNavigationBarType.fixed,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontSize: 11),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.timer_outlined),
+            activeIcon: Icon(Icons.timer),
+            label: 'Tracking',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.assignment_outlined),
+            activeIcon: Icon(Icons.assignment),
+            label: 'Tasks',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_outline_rounded),
+            activeIcon: Icon(Icons.chat_bubble_rounded),
+            label: 'Chats',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.grid_view_outlined),
+            activeIcon: Icon(Icons.grid_view_rounded),
+            label: 'More',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrackingTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 1. Connection Banner
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          color: _streamService.isConnected
+              ? emeraldColor.withOpacity(0.1)
+              : Colors.amber.withOpacity(0.1),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _streamService.isConnected ? Icons.cloud_done : Icons.cloud_off,
+                color: _streamService.isConnected ? emeraldColor : Colors.amber,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _streamService.isConnected
+                    ? 'Streaming to Admin at $_serverIp'
+                    : 'Admin Feed Offline (Setup Server IP in Settings)',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _streamService.isConnected ? emeraldColor : Colors.amber,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // 2. User Stats & Status Header
+        Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Container(
+            padding: const EdgeInsets.all(24.0),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B), // Slate 800
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: _isClockedIn
+                    ? emeraldColor.withOpacity(0.2)
+                    : slateColor.withOpacity(0.1),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'EMPLOYEE NAME',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: slateAwayColor,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _employeeName,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white.withValues(alpha: 0.95),
+                          ),
+                        ),
+                        if (_employeeEmail.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            _employeeEmail,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: slateAwayColor,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _isClockedIn
+                            ? emeraldColor.withOpacity(0.15)
+                            : Colors.red.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text(
+                        _isClockedIn ? 'CLOCKED IN' : 'CLOCKED OUT',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: _isClockedIn ? emeraldColor : Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                const Divider(color: slateDivideColor, height: 1),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatColumn('DURATION', _elapsedTimeString, Icons.timer),
+                    _buildStatColumn('STORAGE', _fileSizeString, Icons.sd_storage),
+                    _buildStatColumn('ID', _streamService.deviceId, Icons.phonelink_setup),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // 3. Central Clock-In Toggle Button
+        Expanded(
+          child: Center(
+            child: _isConnecting
+                ? const CircularProgressIndicator(color: emeraldColor)
+                : GestureDetector(
+                    onTap: _isClockedIn ? _clockOut : _clockIn,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 180,
+                      height: 180,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _isClockedIn ? const Color(0xFF064E3B) : const Color(0xFF1E293B),
+                        border: Border.all(
+                          color: _isClockedIn ? emeraldColor : const Color(0xFF475569),
+                          width: 4,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _isClockedIn
+                                ? emeraldColor.withOpacity(0.3)
+                                : Colors.black.withOpacity(0.3),
+                            blurRadius: 30,
+                            spreadRadius: _isClockedIn ? 8 : 2,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _isClockedIn ? Icons.power_settings_new : Icons.touch_app,
+                            size: 48,
+                            color: _isClockedIn ? emeraldColor : const Color(0xFFCBD5E1),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _isClockedIn ? 'CLOCK OUT' : 'CLOCK IN',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: _isClockedIn ? emeraldColor : const Color(0xFFCBD5E1),
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          if (_isClockedIn) ...[
+                            const SizedBox(height: 4),
+                            const Text(
+                              'REC SCREEN',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ]
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+
+        // 4. Local Recordings List
+        Container(
+          height: 250,
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E293B), // Slate 800
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(32),
+              topRight: Radius.circular(32),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(left: 24.0, right: 24.0, top: 20.0, bottom: 12.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Local Screen Video Logs',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Icon(Icons.video_library, color: slateAwayColor, size: 20),
+                  ],
+                ),
+              ),
+              const Divider(color: slateDivideColor, height: 1),
+              Expanded(
+                child: _recordings.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No screen recordings stored yet.\nClock in to begin recording.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: const Color(0xFF94A3B8),
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: _recordings.length,
+                        itemBuilder: (context, index) {
+                          final file = _recordings[index];
+                          final fileName = file.path.split('/').last;
+                          final dateString = _formatFileDate(file);
+                          
+                          return Card(
+                            color: const Color(0xFF0F172A),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            child: ListTile(
+                              leading: const CircleAvatar(
+                                backgroundColor: Color(0xFF1E293B),
+                                child: Icon(Icons.videocam, color: emeraldColor),
+                              ),
+                              title: Text(
+                                fileName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                dateString,
+                                style: const TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 11,
+                                ),
+                              ),
+                              trailing: const Icon(Icons.play_arrow_rounded, color: emeraldColor),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => VideoPlayerScreen(videoFile: file),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMoreTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Connection Config Card
+          Card(
+            color: const Color(0xFF1E293B), // Slate 800
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'SERVER CONNECTION',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: emeraldColor,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _ipController,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Server IP:Port',
+                      hintText: 'e.g. 192.168.1.10:3000',
+                      hintStyle: TextStyle(color: Color(0xFF475569)),
+                      labelStyle: TextStyle(color: slateAwayColor),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: slateDivideColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: emeraldColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: _isDiscovering ? emeraldColor : slateDivideColor,
+                            ),
+                            foregroundColor: _isDiscovering ? emeraldColor : slateAwayColor,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: _isDiscovering
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: emeraldColor,
+                                  ),
+                                )
+                              : const Icon(Icons.wifi_find, size: 18),
+                          label: Text(
+                            _isDiscovering ? 'Scanning...' : 'Search WiFi',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: _isDiscovering
+                              ? _stopServerDiscovery
+                              : () => _startServerDiscovery(_setStateWrapper),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: emeraldColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                        onPressed: () {
+                          _stopServerDiscovery();
+                          setState(() {
+                            _serverIp = _ipController.text.trim();
+                          });
+                          _showSuccessSnackBar('Connecting to $_serverIp...');
+                          _reconnectWebSocket();
+                        },
+                        child: const Text(
+                          'Save & Connect',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_discoveredServers.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'FOUND ON NETWORK',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: slateAwayColor,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ..._discoveredServers.entries.map((e) => Card(
+                          color: const Color(0xFF0F172A),
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(
+                              Icons.dns_rounded,
+                              size: 16,
+                              color: _ipController.text == e.key ? emeraldColor : slateAwayColor,
+                            ),
+                            title: Text(
+                              e.value,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _ipController.text == e.key ? emeraldColor : Colors.white,
+                              ),
+                            ),
+                            subtitle: Text(
+                              e.key,
+                              style: const TextStyle(fontSize: 10, color: slateAwayColor),
+                            ),
+                            trailing: _ipController.text == e.key
+                                ? const Icon(Icons.check_circle, color: emeraldColor, size: 16)
+                                : null,
+                            onTap: () {
+                              setState(() {
+                                _ipController.text = e.key;
+                              });
+                            },
+                          ),
+                        )),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 2. Admin Portal & Utilities Card
+          Card(
+            color: const Color(0xFF1E293B), // Slate 800
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'UTILITIES & TOOLS',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.cyan,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: const Color(0xFF0F172A),
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.cyan,
+                      child: Icon(Icons.admin_panel_settings, color: Colors.white),
+                    ),
+                    title: const Text(
+                      'Admin Live Gateway',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    subtitle: const Text(
+                      'Monitor active server screens and sessions',
+                      style: TextStyle(color: slateAwayColor, fontSize: 11),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded, color: slateAwayColor),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => AdminFeedScreen(wsUrl: _wsBackendUrl),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 3. Logout Card
+          Card(
+            color: const Color(0xFF1E293B), // Slate 800
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              title: const Text(
+                'Logout / Switch User',
+                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded, color: Colors.redAccent),
+              onTap: _showLogoutConfirmationDialog,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Wrap the entire screen content in the RepaintBoundary so we capture the UI state
@@ -757,9 +1341,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ),
               ),
               const SizedBox(width: 10),
-              const Text(
-                'TRN Monitor',
-                style: TextStyle(
+              Text(
+                _getAppBarTitle(),
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                   letterSpacing: 0.5,
@@ -767,351 +1351,29 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               ),
             ],
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.assignment_rounded, color: Colors.amberAccent),
-              tooltip: 'My Tasks',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => TasksScreen(
-                      streamService: _streamService,
-                      serverIp: _serverIp,
-                    ),
-                  ),
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.chat_bubble_outline_rounded, color: emeraldColor),
-              tooltip: 'Chat with Management',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => ChatUsersScreen(
-                      streamService: _streamService,
-                      serverIp: _serverIp,
-                      employeeName: _employeeName,
-                      employeeId: _employeeId,
-                    ),
-                  ),
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.settings, color: slateAwayColor),
-              onPressed: () => _showSettingsDialog(),
-            ),
-            IconButton(
-              icon: const Icon(Icons.admin_panel_settings, color: Colors.cyan),
-              tooltip: 'Admin Section',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => AdminFeedScreen(wsUrl: _wsBackendUrl),
-                  ),
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-              tooltip: 'Logout / Switch User',
-              onPressed: () => _showLogoutConfirmationDialog(),
-            ),
-          ],
         ),
         body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: IndexedStack(
+            index: _currentTabIndex,
             children: [
-              // 1. Connection Banner
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                color: _streamService.isConnected
-                    ? emeraldColor.withOpacity(0.1)
-                    : Colors.amber.withOpacity(0.1),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _streamService.isConnected ? Icons.cloud_done : Icons.cloud_off,
-                      color: _streamService.isConnected ? emeraldColor : Colors.amber,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _streamService.isConnected
-                          ? 'Streaming to Admin at $_serverIp'
-                          : 'Admin Feed Offline (Setup Server IP in Settings)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _streamService.isConnected ? emeraldColor : Colors.amber,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
+              _buildTrackingTab(),
+              TasksScreen(
+                streamService: _streamService,
+                serverIp: _serverIp,
+                isEmbedded: true,
               ),
-
-              // 2. User Stats & Status Header
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Container(
-                  padding: const EdgeInsets.all(24.0),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B), // Slate 800
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: _isClockedIn
-                          ? emeraldColor.withOpacity(0.2)
-                          : slateColor.withOpacity(0.1),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'EMPLOYEE NAME',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: slateAwayColor,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _employeeName,
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white.withValues(alpha: 0.95),
-                                ),
-                              ),
-                              if (_employeeEmail.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  _employeeEmail,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: slateAwayColor,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: _isClockedIn
-                                  ? emeraldColor.withOpacity(0.15)
-                                  : Colors.red.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                            child: Text(
-                              _isClockedIn ? 'CLOCKED IN' : 'CLOCKED OUT',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: _isClockedIn ? emeraldColor : Colors.redAccent,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      const Divider(color: slateDivideColor, height: 1),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildStatColumn('DURATION', _elapsedTimeString, Icons.timer),
-                          _buildStatColumn('STORAGE', _fileSizeString, Icons.sd_storage),
-                          _buildStatColumn('ID', _streamService.deviceId, Icons.phonelink_setup),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+              ChatUsersScreen(
+                streamService: _streamService,
+                serverIp: _serverIp,
+                employeeName: _employeeName,
+                employeeId: _employeeId,
+                isEmbedded: true,
               ),
-
-              // 3. Central Clock-In Toggle Button
-              Expanded(
-                child: Center(
-                  child: _isConnecting
-                      ? const CircularProgressIndicator(color: emeraldColor)
-                      : GestureDetector(
-                          onTap: _isClockedIn ? _clockOut : _clockIn,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            width: 180,
-                            height: 180,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _isClockedIn ? const Color(0xFF064E3B) : const Color(0xFF1E293B),
-                              border: Border.all(
-                                color: _isClockedIn ? emeraldColor : const Color(0xFF475569),
-                                width: 4,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: _isClockedIn
-                                      ? emeraldColor.withOpacity(0.3)
-                                      : Colors.black.withOpacity(0.3),
-                                  blurRadius: 30,
-                                  spreadRadius: _isClockedIn ? 8 : 2,
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  _isClockedIn ? Icons.power_settings_new : Icons.touch_app,
-                                  size: 48,
-                                  color: _isClockedIn ? emeraldColor : const Color(0xFFCBD5E1),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  _isClockedIn ? 'CLOCK OUT' : 'CLOCK IN',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: _isClockedIn ? emeraldColor : const Color(0xFFCBD5E1),
-                                    letterSpacing: 1.0,
-                                  ),
-                                ),
-                                if (_isClockedIn) ...[
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'REC SCREEN',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.redAccent,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ]
-                              ],
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-
-              // 4. Local Recordings List
-              Container(
-                height: 250,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1E293B), // Slate 800
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(32),
-                    topRight: Radius.circular(32),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(left: 24.0, right: 24.0, top: 20.0, bottom: 12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Local Screen Video Logs',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Icon(Icons.video_library, color: slateAwayColor, size: 20),
-                        ],
-                      ),
-                    ),
-                    const Divider(color: slateDivideColor, height: 1),
-                    Expanded(
-                      child: _recordings.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No screen recordings stored yet.\nClock in to begin recording.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: const Color(0xFF94A3B8),
-                                  fontSize: 13,
-                                  height: 1.5,
-                                ),
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              itemCount: _recordings.length,
-                              itemBuilder: (context, index) {
-                                final file = _recordings[index];
-                                final fileName = file.path.split('/').last;
-                                final dateString = _formatFileDate(file);
-                                
-                                return Card(
-                                  color: const Color(0xFF0F172A),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  margin: const EdgeInsets.symmetric(vertical: 6),
-                                  child: ListTile(
-                                    leading: const CircleAvatar(
-                                      backgroundColor: Color(0xFF1E293B),
-                                      child: Icon(Icons.videocam, color: emeraldColor),
-                                    ),
-                                    title: Text(
-                                      fileName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      dateString,
-                                      style: const TextStyle(
-                                        color: Color(0xFF94A3B8),
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                    trailing: const Icon(Icons.play_arrow_rounded, color: emeraldColor),
-                                    onTap: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (context) => VideoPlayerScreen(videoFile: file),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              )
+              _buildMoreTab(),
             ],
           ),
         ),
+        bottomNavigationBar: _buildBottomNavBar(),
       ),
     );
   }
