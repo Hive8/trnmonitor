@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
 import '../services/stream_service.dart';
 import '../services/url_helper.dart';
 
@@ -37,6 +41,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _isLoading = true;
   bool _isSending = false;
 
+  // Attachment states
+  final ImagePicker _picker = ImagePicker();
+  File? _selectedFile;
+  Map<String, dynamic>? _uploadedFileData;
+  bool _isUploadingFile = false;
+  Map<String, dynamic>? _replyingTo;
+
   String get _httpBackendUrl => UrlHelper.getHttpUrl(widget.serverIp);
 
   @override
@@ -56,7 +67,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _setupWebSocketListeners() {
-    // Listen for incoming messages via the shared WebSocket stream
     _commandSubscription = widget.streamService.commandStream.listen((payload) {
       if (payload['type'] == 'new_message') {
         final messageData = payload['message'];
@@ -64,7 +74,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           final senderId = messageData['senderId'];
           final receiverId = messageData['receiverId'];
 
-          // Verify if message belongs to this private chat conversation
           final isMine = (senderId == widget.employeeId && receiverId == widget.otherUserId) ||
                          (senderId == widget.otherUserId && receiverId == widget.employeeId);
 
@@ -78,7 +87,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     });
 
-    // Listen for WebSocket status changes to refresh UI if connection state alters
     _connectionSubscription = widget.streamService.connectionStatusStream.listen((_) {
       if (mounted) {
         setState(() {});
@@ -120,9 +128,97 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  Future<Map<String, dynamic>?> _uploadFile(File file) async {
+    try {
+      final deviceId = widget.streamService.deviceId;
+      final uri = Uri.parse('$_httpBackendUrl/api/attachments/upload');
+      final request = http.MultipartRequest('POST', uri);
+      
+      request.headers['x-device-id'] = deviceId;
+      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+      
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['success'] == true) {
+          return data;
+        }
+      }
+      print('Upload failed with status: ${response.statusCode}');
+    } catch (e) {
+      print('Error uploading file: $e');
+    }
+    return null;
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(source: source, imageQuality: 70);
+      if (image == null) return;
+      
+      setState(() {
+        _isUploadingFile = true;
+        _selectedFile = File(image.path);
+      });
+      
+      final result = await _uploadFile(_selectedFile!);
+      if (result != null) {
+        setState(() {
+          _uploadedFileData = result;
+        });
+      } else {
+        _showErrorSnackBar('Failed to upload image');
+        setState(() {
+          _selectedFile = null;
+        });
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+    } finally {
+      setState(() {
+        _isUploadingFile = false;
+      });
+    }
+  }
+
+  Future<void> _pickPDF() async {
+    try {
+      final FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (result == null || result.files.single.path == null) return;
+      
+      setState(() {
+        _isUploadingFile = true;
+        _selectedFile = File(result.files.single.path!);
+      });
+      
+      final uploadResult = await _uploadFile(_selectedFile!);
+      if (uploadResult != null) {
+        setState(() {
+          _uploadedFileData = uploadResult;
+        });
+      } else {
+        _showErrorSnackBar('Failed to upload PDF');
+        setState(() {
+          _selectedFile = null;
+        });
+      }
+    } catch (e) {
+      print('Error picking PDF: $e');
+    } finally {
+      setState(() {
+        _isUploadingFile = false;
+      });
+    }
+  }
+
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || _isSending) return;
+    if ((text.isEmpty && _uploadedFileData == null) || _isSending) return;
 
     setState(() {
       _isSending = true;
@@ -138,9 +234,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       request.headers.set('content-type', 'application/json');
       request.headers.set('x-device-id', deviceId);
 
+      dynamic messageContent = text;
+      if (_uploadedFileData != null || _replyingTo != null) {
+        final payload = {
+          'is_json': true,
+          'text': text,
+        };
+        if (_uploadedFileData != null) {
+          payload['file_url'] = _uploadedFileData!['fileUrl'];
+          payload['file_name'] = _uploadedFileData!['fileName'];
+          payload['file_type'] = _uploadedFileData!['fileType'];
+        }
+        if (_replyingTo != null) {
+          String replyText = _replyingTo!['message'] ?? '';
+          try {
+            if (replyText.startsWith('{')) {
+              final parsed = jsonDecode(replyText);
+              if (parsed['is_json'] == true) {
+                replyText = parsed['text'] ?? '[Attachment]';
+              }
+            }
+          } catch (_) {}
+          
+          payload['reply_to'] = {
+            'id': _replyingTo!['id'],
+            'sender_id': _replyingTo!['senderId'],
+            'message': replyText,
+            'timestamp': _replyingTo!['timestamp'],
+          };
+        }
+        messageContent = jsonEncode(payload);
+      }
+
       request.write(jsonEncode({
         'receiverId': widget.otherUserId,
-        'message': text
+        'message': messageContent
       }));
       
       final response = await request.close();
@@ -152,6 +280,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         setState(() {
           _messages.add(Map<String, dynamic>.from(newMessage));
           _messageController.clear();
+          _uploadedFileData = null;
+          _selectedFile = null;
+          _replyingTo = null;
           _isSending = false;
         });
         _scrollToBottom();
@@ -165,6 +296,48 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _showErrorSnackBar('Network error. Unable to send.');
       setState(() => _isSending = false);
     }
+  }
+
+  void _showAttachmentOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Color(0xFF10B981)),
+                title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Color(0xFF10B981)),
+                title: const Text('Choose Photo', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf, color: Color(0xFF10B981)),
+                title: const Text('Attach PDF', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickPDF();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _scrollToBottom() {
@@ -239,7 +412,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Connection banner if offline
             if (!isConnected)
               Container(
                 width: double.infinity,
@@ -281,8 +453,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           itemBuilder: (context, index) {
                             final msg = _messages[index];
                             final isMe = msg['senderId'] == widget.employeeId;
-                            final text = msg['message'] ?? '';
+                            final rawMessage = msg['message'] ?? '';
                             final timestamp = msg['timestamp'];
+
+                            Map<String, dynamic> parsedMsg = {
+                              'text': rawMessage,
+                              'file_url': null,
+                              'file_name': null,
+                              'file_type': null,
+                              'reply_to': null,
+                            };
+
+                            try {
+                              if (rawMessage.startsWith('{')) {
+                                final parsed = jsonDecode(rawMessage);
+                                if (parsed['is_json'] == true) {
+                                  parsedMsg = Map<String, dynamic>.from(parsed);
+                                }
+                              }
+                            } catch (_) {}
+
+                            final text = parsedMsg['text'] ?? '';
 
                             String timeString = '';
                             if (timestamp != null) {
@@ -291,7 +482,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               } catch (_) {}
                             }
 
-                            // Optional Date Header
                             bool showDateHeader = false;
                             if (index == 0) {
                               showDateHeader = true;
@@ -326,57 +516,189 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                       ),
                                     ),
                                   ),
-                                Align(
-                                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                                  child: Container(
-                                    margin: const EdgeInsets.symmetric(vertical: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: isMe ? const Color(0xFF10B981) : const Color(0xFF1E293B),
-                                      borderRadius: BorderRadius.only(
-                                        topLeft: const Radius.circular(16),
-                                        topRight: const Radius.circular(16),
-                                        bottomLeft: Radius.circular(isMe ? 16 : 0),
-                                        bottomRight: Radius.circular(isMe ? 0 : 16),
+                                GestureDetector(
+                                  onLongPress: () {
+                                    setState(() {
+                                      _replyingTo = msg;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Replying to selected message'),
+                                        duration: Duration(seconds: 1),
                                       ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.05),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
+                                    );
+                                  },
+                                  child: Align(
+                                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                                    child: Container(
+                                      margin: const EdgeInsets.symmetric(vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: isMe ? const Color(0xFF10B981) : const Color(0xFF1E293B),
+                                        borderRadius: BorderRadius.only(
+                                          topLeft: const Radius.circular(16),
+                                          topRight: const Radius.circular(16),
+                                          bottomLeft: Radius.circular(isMe ? 16 : 0),
+                                          bottomRight: Radius.circular(isMe ? 0 : 16),
                                         ),
-                                      ],
-                                    ),
-                                    constraints: BoxConstraints(
-                                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          text,
-                                          style: TextStyle(
-                                            color: isMe ? Colors.white : const Color(0xFFF1F5F9),
-                                            fontSize: 14,
-                                            height: 1.3,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
                                           ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          mainAxisAlignment: MainAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              timeString,
-                                              style: TextStyle(
-                                                color: isMe ? Colors.white70 : const Color(0xFF64748B),
-                                                fontSize: 9,
-                                                fontStyle: FontStyle.italic,
+                                        ],
+                                      ),
+                                      constraints: BoxConstraints(
+                                        maxWidth: MediaQuery.of(context).size.width * 0.75,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          // Quote reply
+                                          if (parsedMsg['reply_to'] != null)
+                                            Container(
+                                              margin: const EdgeInsets.only(bottom: 8),
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(alpha: 0.1),
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: Border(
+                                                  left: BorderSide(
+                                                    color: isMe ? Colors.white70 : const Color(0xFF10B981),
+                                                    width: 3,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    parsedMsg['reply_to']['sender_id'] == widget.employeeId ? 'You' : 'Reply',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 9,
+                                                      color: isMe ? Colors.white : const Color(0xFF10B981),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    parsedMsg['reply_to']['message'] ?? '',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontStyle: FontStyle.italic,
+                                                      fontSize: 11,
+                                                      color: isMe ? Colors.white70 : const Color(0xFF94A3B8),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      ],
+
+                                          // File attachment rendering
+                                          if (parsedMsg['file_url'] != null && parsedMsg['file_type'] == 'image')
+                                            Container(
+                                              margin: const EdgeInsets.only(bottom: 6),
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(8),
+                                                child: Image.network(
+                                                  '$_httpBackendUrl${parsedMsg['file_url']}',
+                                                  fit: BoxFit.cover,
+                                                  width: 200,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return Container(
+                                                      color: Colors.black26,
+                                                      width: 200,
+                                                      height: 120,
+                                                      child: const Icon(Icons.broken_image, color: Colors.white24),
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+
+                                          if (parsedMsg['file_url'] != null && parsedMsg['file_type'] == 'pdf')
+                                            GestureDetector(
+                                              onTap: () async {
+                                                final docUrl = '$_httpBackendUrl${parsedMsg['file_url']}';
+                                                try {
+                                                  if (await canLaunchUrl(Uri.parse(docUrl))) {
+                                                    await launchUrl(Uri.parse(docUrl), mode: LaunchMode.externalApplication);
+                                                  } else {
+                                                    _showErrorSnackBar('Could not launch PDF URL');
+                                                  }
+                                                } catch (e) {
+                                                  print('Error launching URL: $e');
+                                                }
+                                              },
+                                              child: Container(
+                                                margin: const EdgeInsets.only(bottom: 6),
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black26,
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(Icons.picture_as_pdf, color: Colors.redAccent, size: 24),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            parsedMsg['file_name'] ?? 'document.pdf',
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: const TextStyle(
+                                                              color: Colors.white,
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                          const Text(
+                                                            'Tap to open PDF',
+                                                            style: TextStyle(
+                                                              color: Color(0xFF64748B),
+                                                              fontSize: 9,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+
+                                          if (text.isNotEmpty)
+                                            Text(
+                                              text,
+                                              style: TextStyle(
+                                                color: isMe ? Colors.white : const Color(0xFFF1F5F9),
+                                                fontSize: 14,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            mainAxisAlignment: MainAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                timeString,
+                                                style: TextStyle(
+                                                  color: isMe ? Colors.white70 : const Color(0xFF64748B),
+                                                  fontSize: 9,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -385,6 +707,88 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           },
                         ),
             ),
+
+            // Reply & Attachment preview layouts
+            if (_replyingTo != null)
+              Container(
+                color: const Color(0xFF1E293B),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.reply, color: Color(0xFF10B981), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _replyingTo!['senderId'] == widget.employeeId ? 'Replying to yourself' : 'Replying to staff',
+                            style: const TextStyle(color: Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            (() {
+                              final text = _replyingTo!['message'] ?? '';
+                              try {
+                                if (text.startsWith('{')) {
+                                  final parsed = jsonDecode(text);
+                                  if (parsed['is_json'] == true) {
+                                    return parsed['text'] ?? '[Attachment]';
+                                  }
+                                }
+                              } catch (_) {}
+                              return text;
+                            })(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Color(0xFF94A3B8), size: 16),
+                      onPressed: () => setState(() => _replyingTo = null),
+                    ),
+                  ],
+                ),
+              ),
+            if (_selectedFile != null || _isUploadingFile)
+              Container(
+                color: const Color(0xFF1E293B),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isUploadingFile 
+                          ? Icons.cloud_upload_outlined
+                          : (_uploadedFileData?['fileType'] == 'image' ? Icons.image : Icons.insert_drive_file),
+                      color: const Color(0xFF10B981),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _isUploadingFile
+                            ? 'Uploading file...'
+                            : (_selectedFile?.path.split('/').last ?? 'Attachment'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                    if (!_isUploadingFile)
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Color(0xFF94A3B8), size: 16),
+                        onPressed: () {
+                          setState(() {
+                            _selectedFile = null;
+                            _uploadedFileData = null;
+                          });
+                        },
+                      ),
+                  ],
+                ),
+              ),
 
             // Input panel
             Container(
@@ -397,6 +801,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               child: Row(
                 children: [
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline, color: Color(0xFF94A3B8)),
+                    onPressed: _showAttachmentOptions,
+                  ),
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(

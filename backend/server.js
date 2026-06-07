@@ -1237,6 +1237,78 @@ wss.on('connection', async (ws, req) => {
   }
 });
 
+// Attachment uploading and static hosting
+const multer = require('multer');
+
+const attachmentsDir = path.join(__dirname, 'attachments');
+if (!fs.existsSync(attachmentsDir)) {
+  fs.mkdirSync(attachmentsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, attachmentsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ storage: storage });
+
+app.post('/api/attachments/upload', upload.single('file'), async (req, res) => {
+  let isAuthenticated = false;
+
+  // Verify Admin JWT token from session map
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token) {
+    const session = activeSessions.get(token);
+    if (session && Date.now() <= session.exp) {
+      req.user = session;
+      isAuthenticated = true;
+    }
+  }
+
+  // Verify Device ID
+  if (!isAuthenticated) {
+    const deviceId = req.headers['x-device-id'];
+    if (deviceId) {
+      const employees = await loadEmployees();
+      const employee = employees.find(e => e.deviceId === deviceId);
+      if (employee) {
+        req.user = { userId: employee.id, role: employee.role };
+        isAuthenticated = true;
+      }
+    }
+  }
+
+  if (!isAuthenticated) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'No file uploaded.' });
+  }
+
+  let fileType = 'file';
+  if (req.file.mimetype.startsWith('image/')) {
+    fileType = 'image';
+  } else if (req.file.mimetype === 'application/pdf') {
+    fileType = 'pdf';
+  }
+
+  res.json({
+    success: true,
+    fileUrl: `/attachments/${req.file.filename}`,
+    fileName: req.file.originalname,
+    fileType: fileType
+  });
+});
+
+app.use('/attachments', express.static(attachmentsDir));
+
 // REST API for chat messages
 app.get('/api/messages/unread-count', authenticateToken, async (req, res) => {
   const currentUserId = req.user.userId;
