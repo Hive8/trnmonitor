@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.net.wifi.WifiManager
+import android.os.BatteryManager
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -78,6 +79,15 @@ class MainActivity : FlutterActivity() {
                     // Locking programmatically is restricted on standard Android APIs without Administrator status.
                     // We return false here and let the backend ADB command handle it as a fallback.
                     result.success(false)
+                }
+                "get_battery_level" -> {
+                    try {
+                        val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+                        val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                        result.success(batteryLevel)
+                    } catch (e: Exception) {
+                        result.error("ERROR", e.message, null)
+                    }
                 }
                 else -> {
                     result.notImplemented()

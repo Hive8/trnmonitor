@@ -1025,6 +1025,13 @@ wss.on('connection', async (ws, req) => {
         try {
           const textMsg = JSON.parse(message.toString());
           if (textMsg.type === 'heartbeat') {
+            if (textMsg.battery !== undefined) {
+              broadcastToAdmins({
+                type: 'battery_update',
+                deviceId: deviceId,
+                level: textMsg.battery
+              });
+            }
             return; // Suppress heartbeat logs and broadcasts to avoid console clutter
           }
           console.log(`Received text from device ${deviceId}: ${message.toString()}`);

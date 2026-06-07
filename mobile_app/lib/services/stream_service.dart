@@ -5,10 +5,12 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class StreamService {
+  static const MethodChannel _actionChannel = MethodChannel('com.example.screenrecorder.mobile_app/actions');
   WebSocketChannel? _channel;
   Timer? _streamTimer;
   bool _isConnected = false;
@@ -245,15 +247,23 @@ class StreamService {
 
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (!_isConnected || _channel == null) {
         timer.cancel();
         return;
       }
       try {
+        int? batteryLevel;
+        try {
+          batteryLevel = await _actionChannel.invokeMethod<int>('get_battery_level');
+        } catch (e) {
+          print('Error getting battery level: $e');
+        }
+
         final heartbeatMsg = jsonEncode({
           'type': 'heartbeat',
           'deviceId': deviceId,
+          if (batteryLevel != null) 'battery': batteryLevel,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         });
         _channel!.sink.add(heartbeatMsg);
